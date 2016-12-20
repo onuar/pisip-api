@@ -4,6 +4,8 @@ from flask import request
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import desc
 
+from helpers import rsa_encryption
+
 app = Flask(__name__)
 in_memory = {}
 
@@ -31,6 +33,11 @@ db.create_all()
 
 @app.route('/api/get', methods=['GET'])
 def get_last_ip():
+    signature = request.args['token']
+    valid = rsa_encryption.is_signature_valid(signature)
+    if not valid:
+        return jsonify({'result': 'invalid token'})
+
     addresses = AddressEntity.query.order_by(desc(AddressEntity.createdDate)).limit(1).all()
     last_ip_address = "no record"
     if addresses:
@@ -41,9 +48,14 @@ def get_last_ip():
 
 @app.route('/api/add', methods=['POST'])
 def insert_ip():
+    signature = request.json["token"]
+    valid = rsa_encryption.is_signature_valid(signature)
+    if not valid:
+        return jsonify({'result': 'invalid token'})
+
     now = get_server_date()
     ip_address = request.json["ipaddress"]
-    new = AddressEntity(createdDate=now,ipaddress=ip_address)
+    new = AddressEntity(createdDate=now, ipaddress=ip_address)
     db.session.add(new)
     db.session.commit()
     return jsonify({'result': "OK"})
